@@ -21,6 +21,13 @@ interface ChartWidgetProps {
 const BULL_COLOR = '#00C087';
 const BEAR_COLOR = '#FF3062';
 
+/**
+ * API / DB 与 OKX 一致为毫秒；lightweight-charts v5 的 UTCTimestamp 为「秒」（可带小数）。
+ */
+function chartTime(msOrSeconds: number): number {
+  return msOrSeconds > 1e12 ? msOrSeconds / 1000 : msOrSeconds;
+}
+
 export default function ChartWidget({
   bars,
   emaEnabled,
@@ -128,7 +135,7 @@ export default function ChartWidget({
     if (!bars.length) return;
 
     const candleData = bars.map((b) => ({
-      time: b.time as any,
+      time: chartTime(b.time) as any,
       open: b.open,
       high: b.high,
       low: b.low,
@@ -136,7 +143,7 @@ export default function ChartWidget({
     }));
 
     const volumeData = bars.map((b) => ({
-      time: b.time as any,
+      time: chartTime(b.time) as any,
       value: b.volume,
       color: b.close >= b.open ? 'rgba(0,192,135,0.35)' : 'rgba(255,48,98,0.35)',
     }));
@@ -146,8 +153,8 @@ export default function ChartWidget({
 
     // EMA
     if (bars[0]?.ema_20 != null) {
-      const ema20Data = bars.filter((b) => b.ema_20 != null).map((b) => ({ time: b.time as any, value: b.ema_20! }));
-      const ema50Data = bars.filter((b) => b.ema_50 != null).map((b) => ({ time: b.time as any, value: b.ema_50! }));
+      const ema20Data = bars.filter((b) => b.ema_20 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.ema_20! }));
+      const ema50Data = bars.filter((b) => b.ema_50 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.ema_50! }));
       ema20Ref.current?.setData(ema20Data as any);
       ema50Ref.current?.setData(ema50Data as any);
     } else {
@@ -165,13 +172,13 @@ export default function ChartWidget({
         const rsi = pane.addSeries(LineSeries, { color: '#8A919E', lineWidth: 2 });
         rsiRef.current = rsi;
         pane.addSeries(LineSeries, { color: '#555B69', lineWidth: 1, lineStyle: 2 as any }).setData(
-          bars.map((b) => ({ time: b.time as any, value: 70 }))
+          bars.map((b) => ({ time: chartTime(b.time) as any, value: 70 }))
         );
         pane.addSeries(LineSeries, { color: '#555B69', lineWidth: 1, lineStyle: 2 as any }).setData(
-          bars.map((b) => ({ time: b.time as any, value: 30 }))
+          bars.map((b) => ({ time: chartTime(b.time) as any, value: 30 }))
         );
       }
-      const rsiData = bars.filter((b) => b.rsi_14 != null).map((b) => ({ time: b.time as any, value: b.rsi_14! }));
+      const rsiData = bars.filter((b) => b.rsi_14 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.rsi_14! }));
       rsiRef.current?.setData(rsiData as any);
     } else {
       rsiRef.current?.setData([]);
@@ -193,10 +200,10 @@ export default function ChartWidget({
         macdSignalRef.current = macdSignal;
         macdHistRef.current = macdHist;
       }
-      const macdData = bars.filter((b) => b.macd != null).map((b) => ({ time: b.time as any, value: b.macd! }));
-      const signalData = bars.filter((b) => b.macd_signal != null).map((b) => ({ time: b.time as any, value: b.macd_signal! }));
+      const macdData = bars.filter((b) => b.macd != null).map((b) => ({ time: chartTime(b.time) as any, value: b.macd! }));
+      const signalData = bars.filter((b) => b.macd_signal != null).map((b) => ({ time: chartTime(b.time) as any, value: b.macd_signal! }));
       const histData = bars.filter((b) => b.macd_histogram != null).map((b) => ({
-        time: b.time as any,
+        time: chartTime(b.time) as any,
         value: b.macd_histogram!,
         color: b.macd_histogram! >= 0 ? 'rgba(0,192,135,0.6)' : 'rgba(255,48,98,0.6)',
       }));
@@ -219,7 +226,7 @@ export default function ChartWidget({
         const atr = pane.addSeries(LineSeries, { color: '#3498DB', lineWidth: 2 });
         atrRef.current = atr;
       }
-      const atrData = bars.filter((b) => b.atr_14 != null).map((b) => ({ time: b.time as any, value: b.atr_14! }));
+      const atrData = bars.filter((b) => b.atr_14 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.atr_14! }));
       atrRef.current?.setData(atrData as any);
     } else {
       atrRef.current?.setData([]);
@@ -255,5 +262,5 @@ export default function ChartWidget({
     if (pane) pane.setHeight(atrEnabled ? 150 : 0);
   }, [atrEnabled]);
 
-  return <div ref={containerRef} className="chart-area" />;
+  return <div ref={containerRef} className="chart-widget-root" />;
 }

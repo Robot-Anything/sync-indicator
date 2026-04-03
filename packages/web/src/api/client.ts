@@ -1,4 +1,5 @@
 export interface Bar {
+  /** K 线开盘时间，与 OKX / DB 一致为 Unix 毫秒 */
   time: number;
   open: number;
   high: number;
