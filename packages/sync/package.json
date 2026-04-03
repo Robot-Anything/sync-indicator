@@ -1,0 +1,30 @@
+{
+  "name": "@sync-indicator/sync",
+  "version": "1.0.0",
+  "description": "Data sync services for OHLCV, trades, BBO, and orderbook",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "init-db": "node dist/scripts/init-db.js",
+    "fetch-ohlcv": "node dist/scripts/fetch-okx-ohlcv.js",
+    "fetch-instruments": "node dist/scripts/fetch-instruments.js",
+    "sync-realtime": "node dist/scripts/sync-realtime-ohlcv.js",
+    "sync-realtime-trades": "node dist/scripts/sync-realtime-trades.js",
+    "sync-realtime-bbo": "node dist/scripts/sync-realtime-bbo.js",
+    "sync-realtime-orderbook": "node dist/scripts/sync-realtime-orderbook.js",
+    "sync-ohlcv": "pnpm run fetch-ohlcv && pnpm run sync-realtime"
+  },
+  "dependencies": {
+    "@sync-indicator/core": "workspace:*",
+    "dotenv": "^16.0.0",
+    "pg": "^8.11.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.10.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.0.0"
+  }
+}
