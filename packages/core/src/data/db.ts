@@ -26,6 +26,61 @@ export function getPool(): Pool | null {
 
 const BATCH_SIZE = 100;
 
+/**
+ * Upsert K 线（用于实时更新当前未收盘 candle）
+ * ON CONFLICT 时更新 high, low, close, volume
+ */
+export async function upsertOhlcv(
+  p: Pool,
+  rows: OhlcvRow[]
+): Promise<{ upserted: number }> {
+  if (rows.length === 0) return { upserted: 0 };
+
+  const cleaned = cleanOhlcvBatch(rows);
+
+  const client = await p.connect();
+  let total = 0;
+  try {
+    for (let start = 0; start < cleaned.length; start += BATCH_SIZE) {
+      const batch = cleaned.slice(start, start + BATCH_SIZE);
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      let i = 0;
+      for (const r of batch) {
+        placeholders.push(
+          `($${i + 1}, $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6}, $${i + 7}, $${i + 8}, $${i + 9})`
+        );
+        values.push(
+          r.exchange,
+          r.symbol,
+          r.interval,
+          r.time,
+          r.open,
+          r.high,
+          r.low,
+          r.close,
+          r.volume
+        );
+        i += 9;
+      }
+      const sql = `
+        INSERT INTO ohlcv (exchange, symbol, "interval", time_ts, open, high, low, close, volume)
+        VALUES ${placeholders.join(', ')}
+        ON CONFLICT (exchange, symbol, "interval", time_ts) DO UPDATE SET
+          high = EXCLUDED.high,
+          low = EXCLUDED.low,
+          close = EXCLUDED.close,
+          volume = EXCLUDED.volume
+      `;
+      const result = await client.query(sql, values);
+      total += result.rowCount ?? 0;
+    }
+    return { upserted: total };
+  } finally {
+    client.release();
+  }
+}
+
 export async function insertOhlcv(
   p: Pool,
   rows: OhlcvRow[]

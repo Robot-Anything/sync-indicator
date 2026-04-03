@@ -14,7 +14,7 @@ export { macdGoldenCross } from './indicators/macd-cross.js';
 export { rsi } from './indicators/rsi.js';
 
 // Data access
-export { initPool, getPool, insertOhlcv, type OhlcvRow } from './data/db.js';
+export { initPool, getPool, insertOhlcv, upsertOhlcv, type OhlcvRow } from './data/db.js';
 export { fetchRecentOhlcv, type OhlcvBar } from './data/db-ohlcv-query.js';
 export { normalizeOkxCandle } from './data/normalize.js';
 export { cleanOhlcvRow, cleanOhlcvBatch } from './data/clean-ohlcv.js';

@@ -16,11 +16,13 @@ RUN pnpm install --frozen-lockfile
 # --- build stage for sync ---
 FROM deps AS sync-build
 COPY . .
+RUN pnpm --filter @sync-indicator/core run build
 RUN pnpm --filter @sync-indicator/sync run build
 
 # --- build stage for api ---
 FROM deps AS api-build
 COPY . .
+RUN pnpm --filter @sync-indicator/core run build
 RUN pnpm --filter @sync-indicator/api run build
 
 # --- runtime for sync ---

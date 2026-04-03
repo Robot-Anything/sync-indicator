@@ -3,7 +3,7 @@
  */
 
 import { loadEnv } from '@sync-indicator/core';
-import { initPool, insertOhlcv, type OhlcvRow } from '@sync-indicator/core';
+import { initPool, upsertOhlcv, type OhlcvRow } from '@sync-indicator/core';
 import { fetchOkxEthUsdtFrom2025Jan1 } from '../data/sources/okx.js';
 import type { OHLCV } from '@sync-indicator/core';
 import { createLogger } from '@sync-indicator/core';
@@ -57,12 +57,12 @@ async function main(): Promise<void> {
 
   const pool = initPool(databaseUrl);
   try {
-    const res1 = await insertOhlcv(pool, rows1H);
-    const res2 = await insertOhlcv(pool, rows4H);
-    const res3 = await insertOhlcv(pool, rows15m);
-    const res4 = await insertOhlcv(pool, rows1D);
+    const res1 = await upsertOhlcv(pool, rows1H);
+    const res2 = await upsertOhlcv(pool, rows4H);
+    const res3 = await upsertOhlcv(pool, rows15m);
+    const res4 = await upsertOhlcv(pool, rows1D);
     log.info(
-      `inserted 1H=${res1.inserted} 4H=${res2.inserted} 15m=${res3.inserted} 1D=${res4.inserted}`
+      `upserted 1H=${res1.upserted} 4H=${res2.upserted} 15m=${res3.upserted} 1D=${res4.upserted}`
     );
     const allTimes = [
       ...rows1H.map((r) => r.time),

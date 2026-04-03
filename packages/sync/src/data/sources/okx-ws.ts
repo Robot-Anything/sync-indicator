@@ -28,6 +28,11 @@ function isConfirmedCandle(row: string[]): boolean {
   return row.length > 8 && row[8] === '1';
 }
 
+/** 是否为未收盘的实时 candle（confirm=0），用于实时更新当前 K 线 */
+function isLiveCandle(row: string[]): boolean {
+  return row.length > 8 && row[8] === '0';
+}
+
 interface OkxPushArg {
   channel?: string;
   instId?: string;
@@ -41,7 +46,7 @@ interface OkxPushMessage {
   msg?: string;
 }
 
-export type OnCandleCallback = (interval: string, ohlcv: OHLCV) => void;
+export type OnCandleCallback = (interval: string, ohlcv: OHLCV, confirmed: boolean) => void;
 
 /** WsHandle 保证 close() 始终操作当前活跃连接，解决重连后引用过期问题 */
 export interface WsHandle {
@@ -147,11 +152,13 @@ export function connectOkxCandleWs(onCandle: OnCandleCallback): WsHandle {
       const interval = channelToInterval(arg.channel);
       for (const row of data) {
         if (!Array.isArray(row) || row.length < 6) continue;
-        if (!isConfirmedCandle(row)) continue;
+        const confirmed = isConfirmedCandle(row);
+        const live = isLiveCandle(row);
+        if (!confirmed && !live) continue;
         try {
           const ohlcv = normalizeOkxCandle(row);
-          onCandle(interval, ohlcv);
-          log.info(`candle interval=${interval} time=${new Date(ohlcv.time).toISOString()}`);
+          onCandle(interval, ohlcv, confirmed);
+          log.info(`candle interval=${interval} time=${new Date(ohlcv.time).toISOString()} ${confirmed ? 'confirmed' : 'live'}`);
         } catch (e) {
           log.error(`normalize candle interval=${interval}`, e instanceof Error ? e.message : e);
         }

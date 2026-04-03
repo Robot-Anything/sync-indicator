@@ -3,7 +3,7 @@
  */
 
 import { loadEnv } from '@sync-indicator/core';
-import { initPool, insertOhlcv, getPool, type OhlcvRow } from '@sync-indicator/core';
+import { initPool, upsertOhlcv, getPool, type OhlcvRow } from '@sync-indicator/core';
 import { connectOkxCandleWs, type WsHandle } from '../data/sources/okx-ws.js';
 import type { OHLCV } from '@sync-indicator/core';
 import { createLogger } from '@sync-indicator/core';
@@ -41,15 +41,15 @@ async function main(): Promise<void> {
 
   let wsHandle: WsHandle | null = null;
 
-  wsHandle = connectOkxCandleWs(async (interval: string, ohlcv: OHLCV) => {
+  wsHandle = connectOkxCandleWs(async (interval: string, ohlcv: OHLCV, confirmed: boolean) => {
     const row = toRow(interval, ohlcv);
 
-    // 写入 K 线
+    // 已收盘 & 未收盘：均用 upsert（DO UPDATE），确保最终数据与交易所一致
     try {
-      const res = await insertOhlcv(pool, [row]);
-      log.info(`inserted interval=${interval} time_ts=${ohlcv.time} inserted=${res.inserted}`);
+      const res = await upsertOhlcv(pool, [row]);
+      log.info(`upserted interval=${interval} time_ts=${ohlcv.time} confirmed=${confirmed} upserted=${res.upserted}`);
     } catch (err) {
-      log.error(`insert failed interval=${interval} time_ts=${ohlcv.time}`, err instanceof Error ? err.message : err);
+      log.error(`write failed interval=${interval} time_ts=${ohlcv.time}`, err instanceof Error ? err.message : err);
     }
   });
 
