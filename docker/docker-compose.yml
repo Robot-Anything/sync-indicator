@@ -1,5 +1,9 @@
-# 在 sync-indicator/ 目录下执行：docker compose up -d
-# 注意：需提前配置好外部 PostgreSQL 数据库
+# 在 sync-indicator/ 目录下执行：docker compose -f docker/docker-compose.yml up -d
+# 注意：需提前在根目录配置好 .env（DATABASE_URL、API_PORT）
+x-env: &env
+  env_file:
+    - ../.env
+
 services:
   # 获取合约信息
   fetch-instruments:
@@ -8,9 +12,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-fetch-instruments
-    command: ["node", "dist/scripts/fetch-instruments.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "packages/sync/dist/scripts/fetch-instruments.js"]
+    <<: *env
     restart: "no"
 
   # 实时 K 线同步：先拉历史再常驻 WebSocket 写库
@@ -20,9 +23,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-ohlcv
-    command: ["sh", "-c", "node dist/scripts/fetch-okx-ohlcv.js && exec node dist/scripts/sync-realtime-ohlcv.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["sh", "-c", "node packages/sync/dist/scripts/fetch-okx-ohlcv.js && exec node packages/sync/dist/scripts/sync-realtime-ohlcv.js"]
+    <<: *env
     restart: unless-stopped
 
   # 实时成交明细同步
@@ -32,9 +34,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-trades
-    command: ["node", "dist/scripts/sync-realtime-trades.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "packages/sync/dist/scripts/sync-realtime-trades.js"]
+    <<: *env
     restart: unless-stopped
 
   # 实时 BBO 买卖一档同步
@@ -44,9 +45,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-bbo
-    command: ["node", "dist/scripts/sync-realtime-bbo.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "packages/sync/dist/scripts/sync-realtime-bbo.js"]
+    <<: *env
     restart: unless-stopped
 
   # 实时订单簿 20 档同步
@@ -56,9 +56,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-orderbook
-    command: ["node", "dist/scripts/sync-realtime-orderbook.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "packages/sync/dist/scripts/sync-realtime-orderbook.js"]
+    <<: *env
     restart: unless-stopped
 
   # 初始化数据库表
@@ -68,9 +67,8 @@ services:
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-init-db
-    command: ["node", "dist/scripts/init-db.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    command: ["node", "packages/sync/dist/scripts/init-db.js"]
+    <<: *env
     restart: "no"
 
   # Fastify HTTP API
@@ -80,10 +78,8 @@ services:
       dockerfile: Dockerfile
       target: api
     container_name: sync-indicator-api
-    command: ["node", "dist/index.js"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      API_PORT: ${API_PORT:-3001}
+    command: ["node", "packages/api/dist/index.js"]
+    <<: *env
     ports:
-      - "${API_PORT:-3001}:3001"
+      - "3211:3211"
     restart: unless-stopped

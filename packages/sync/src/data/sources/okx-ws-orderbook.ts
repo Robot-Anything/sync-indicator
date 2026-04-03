@@ -7,7 +7,7 @@ import WebSocket from 'ws';
 import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('okx-ws-orderbook');
-const WS_URL = 'wss://ws.okx.com:8443/ws/v5/business';
+const WS_URL = 'wss://ws.okx.com:8443/ws/v5/public'; // books channel is on public endpoint
 const INST_ID = 'ETH-USDT';
 const DEPTH = 20; // 20 档
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -27,16 +27,16 @@ interface OkxBookLevel {
 }
 
 interface OkxBookItem {
-  action?: string;
-  asks?: OkxBookLevel[][];
+  asks?: OkxBookLevel[][];  // each entry: [price, size, deprecated, orderCount]
   bids?: OkxBookLevel[][];
   ts?: string;
-  seqId?: string;
-  checksum?: string;
+  seqId?: number | string;
+  checksum?: number;
 }
 
 interface OkxPushMessage {
   arg?: { channel?: string; instId?: string };
+  action?: string; // "snapshot" | "update" — on outer message, not inside data items
   data?: OkxBookItem[];
   event?: string;
   code?: string;
@@ -50,19 +50,19 @@ export interface WsHandle {
 }
 
 /**
- * 解析 OKX 档位数据为 [price, size][] — 遍历所有档位
+ * 解析 OKX 档位数据为 [price, size][]
+ * OKX 格式：levels = [["price", "size", "deprecated", "count"], ...]
+ * 每个 level 是 [price, size, ...] 的一维数组，直接取 [0] 和 [1]
  */
 function parseLevels(levels?: OkxBookLevel[][]): [number, number][] {
   if (!levels) return [];
   const result: [number, number][] = [];
   for (const level of levels) {
-    if (!Array.isArray(level)) continue;
-    for (const l of level) {
-      const px = Number(l[0]);
-      const sz = Number(l[1]);
-      if (Number.isFinite(px) && Number.isFinite(sz)) {
-        result.push([px, sz]);
-      }
+    if (!Array.isArray(level) || level.length < 2) continue;
+    const px = Number(level[0]);
+    const sz = Number(level[1]);
+    if (Number.isFinite(px) && Number.isFinite(sz)) {
+      result.push([px, sz]);
     }
   }
   return result;
@@ -199,25 +199,26 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
       }
 
       const data = msg.data;
+      const action = msg.action; // "snapshot" | "update" — on outer message
       if (!data || !Array.isArray(data)) return;
 
       for (const item of data) {
         const ts = Number(item?.ts ?? 0);
 
-        // 全量快照 (action === 'snapshot')
-        if (item.action === 'snapshot') {
+        // 全量快照：action === 'snapshot'（首次连接及重连后第一条消息）
+        if (action === 'snapshot') {
           bidMap.clear();
           askMap.clear();
           for (const [px, sz] of parseLevels(item.bids)) bidMap.set(px, sz);
           for (const [px, sz] of parseLevels(item.asks)) askMap.set(px, sz);
-          lastSeqId = item.seqId ? String(item.seqId) : null;
+          lastSeqId = item.seqId != null ? String(item.seqId) : null;
           lastUpdateTs = ts;
           emit(ts);
           continue;
         }
 
-        // 增量更新：按 seqId 顺序处理
-        const seqId = item.seqId ? String(item.seqId) : null;
+        // 增量更新：按 seqId 顺序处理，防止乱序重放
+        const seqId = item.seqId != null ? String(item.seqId) : null;
         if (seqId && lastSeqId) {
           if (parseInt(seqId) <= parseInt(lastSeqId)) {
             log.warn(`seqId ${seqId} <= lastSeqId ${lastSeqId}, skip`);
@@ -225,36 +226,32 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
           }
         }
 
-        // 增量更新 bids — 遍历所有档位
+        // 增量更新 bids — 每个 level = [price, size, deprecated, count]
         if (item.bids) {
           for (const level of item.bids) {
-            if (!Array.isArray(level)) continue;
-            for (const l of level) {
-              const px = Number(l[0]);
-              const sz = Number(l[1]);
-              if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
-              if (sz === 0) {
-                bidMap.delete(px);
-              } else {
-                bidMap.set(px, sz);
-              }
+            if (!Array.isArray(level) || level.length < 2) continue;
+            const px = Number(level[0]);
+            const sz = Number(level[1]);
+            if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
+            if (sz === 0) {
+              bidMap.delete(px);
+            } else {
+              bidMap.set(px, sz);
             }
           }
         }
 
-        // 增量更新 asks — 遍历所有档位
+        // 增量更新 asks — 每个 level = [price, size, deprecated, count]
         if (item.asks) {
           for (const level of item.asks) {
-            if (!Array.isArray(level)) continue;
-            for (const l of level) {
-              const px = Number(l[0]);
-              const sz = Number(l[1]);
-              if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
-              if (sz === 0) {
-                askMap.delete(px);
-              } else {
-                askMap.set(px, sz);
-              }
+            if (!Array.isArray(level) || level.length < 2) continue;
+            const px = Number(level[0]);
+            const sz = Number(level[1]);
+            if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
+            if (sz === 0) {
+              askMap.delete(px);
+            } else {
+              askMap.set(px, sz);
             }
           }
         }

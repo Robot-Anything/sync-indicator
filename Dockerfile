@@ -26,14 +26,26 @@ RUN pnpm --filter @sync-indicator/api run build
 # --- runtime for sync ---
 FROM base AS sync
 WORKDIR /app
-COPY --from=sync-build /app/packages/sync/dist ./dist
-COPY --from=sync-build /app/node_modules ./node_modules
-CMD ["node", "dist/scripts/init-db.js"]
+COPY --from=sync-build /app/packages/sync/dist ./packages/sync/dist
+COPY --from=sync-build /app/packages/core/dist ./packages/core/dist
+COPY --from=sync-build /app/packages/core/package.json ./packages/core/
+COPY --from=sync-build /app/packages/sync/package.json ./packages/sync/
+COPY --from=sync-build /app/package.json ./package.json
+COPY --from=sync-build /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=sync-build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+RUN pnpm install --prod --frozen-lockfile
+CMD ["node", "packages/sync/dist/scripts/init-db.js"]
 
 # --- runtime for api ---
 FROM base AS api
 WORKDIR /app
-COPY --from=api-build /app/packages/api/dist ./dist
-COPY --from=api-build /app/node_modules ./node_modules
+COPY --from=api-build /app/packages/api/dist ./packages/api/dist
+COPY --from=api-build /app/packages/core/dist ./packages/core/dist
+COPY --from=api-build /app/packages/core/package.json ./packages/core/
+COPY --from=api-build /app/packages/api/package.json ./packages/api/
+COPY --from=api-build /app/package.json ./package.json
+COPY --from=api-build /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=api-build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+RUN pnpm install --prod --frozen-lockfile
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["node", "packages/api/dist/index.js"]

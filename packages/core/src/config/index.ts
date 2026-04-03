@@ -3,10 +3,26 @@
  */
 
 import { config } from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
-/** 从项目根目录（当前工作目录）加载 .env，脚本入口应先调用 */
+/**
+ * 从 process.cwd() 向上遍历查找最近的 .env 文件并加载。
+ * monorepo 结构下 pnpm 在子包目录执行脚本，.env 通常在 workspace 根目录。
+ */
 export function loadEnv(): void {
-  config();
+  let dir = process.cwd();
+  while (true) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) {
+      config({ path: envPath });
+      return;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // 已到文件系统根目录
+    dir = parent;
+  }
+  config(); // fallback：dotenv 默认行为
 }
 
 export interface AppConfig {
