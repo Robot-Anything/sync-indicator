@@ -1,14 +1,14 @@
-# 在 sync-indicator/ 目录下执行：docker compose -f docker/docker-compose.yml up -d
+# 在 sync-indicator/ 目录下执行：docker compose up -d
 # 注意：需提前在根目录配置好 .env（DATABASE_URL、API_PORT）
 x-env: &env
   env_file:
-    - ../.env
+    - .env
 
 services:
   # 获取合约信息
   fetch-instruments:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-fetch-instruments
@@ -19,7 +19,7 @@ services:
   # 实时 K 线同步：先拉历史再常驻 WebSocket 写库
   sync-ohlcv:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-ohlcv
@@ -30,7 +30,7 @@ services:
   # 实时成交明细同步
   sync-realtime-trades:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-trades
@@ -41,7 +41,7 @@ services:
   # 实时 BBO 买卖一档同步
   sync-realtime-bbo:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-bbo
@@ -52,7 +52,7 @@ services:
   # 实时订单簿 20 档同步
   sync-realtime-orderbook:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-sync-realtime-orderbook
@@ -63,7 +63,7 @@ services:
   # 初始化数据库表
   init-db:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: sync
     container_name: sync-indicator-init-db
@@ -74,7 +74,7 @@ services:
   # Fastify HTTP API
   indicator-api:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
       target: api
     container_name: sync-indicator-api
