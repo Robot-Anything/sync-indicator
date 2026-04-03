@@ -2,3 +2,4 @@ dist
 .claude
 node_modules
 packages/*/dist
+.env
