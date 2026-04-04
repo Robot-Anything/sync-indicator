@@ -6,6 +6,7 @@ import {
   fetchIndicators,
   fetchBbo,
   fetchOrderbook,
+  fetchSymbols,
   type Bar,
   type BboData,
   type OrderbookData,
@@ -13,6 +14,7 @@ import {
 
 export default function App() {
   // Config
+  const [symbols, setSymbols] = useState<string[]>(['ETH-USDT']);
   const [symbol, setSymbol] = useState('ETH-USDT');
   const [interval, setInterval] = useState('1H');
   const [emaEnabled, setEmaEnabled] = useState(true);
@@ -26,6 +28,18 @@ export default function App() {
   const [orderbook, setOrderbook] = useState<OrderbookData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch available symbols on mount
+  useEffect(() => {
+    fetchSymbols('okx')
+      .then((list) => {
+        if (list.length > 0) {
+          setSymbols(list);
+          setSymbol((prev) => (list.includes(prev) ? prev : list[0]!));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch indicators on config change
   useEffect(() => {
@@ -41,6 +55,7 @@ export default function App() {
 
     setLoading(true);
     setError(null);
+    setBars([]);
 
     fetchIndicators({
       exchange: 'okx',
@@ -60,6 +75,7 @@ export default function App() {
   // Poll BBO every 1s
   useEffect(() => {
     let cancelled = false;
+    setBbo(null);
 
     const poll = () => {
       fetchBbo('okx', symbol)
@@ -82,6 +98,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let intervalId: ReturnType<typeof window.setInterval> | undefined;
+    setOrderbook(null);
 
     const poll = () => {
       fetchOrderbook('okx', symbol, 15)
@@ -111,6 +128,7 @@ export default function App() {
   return (
     <div className="app">
       <Toolbar
+        symbols={symbols}
         symbol={symbol}
         interval={interval}
         emaEnabled={emaEnabled}

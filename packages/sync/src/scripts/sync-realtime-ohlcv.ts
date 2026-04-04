@@ -2,7 +2,7 @@
  * 实时 K 线同步：订阅 OKX WebSocket candle1H/candle4H，confirm=1 时写入 ohlcv 表
  */
 
-import { loadEnv } from '@sync-indicator/core';
+import { loadEnv, loadSymbols } from '@sync-indicator/core';
 import { initPool, upsertOhlcv, getPool, type OhlcvRow } from '@sync-indicator/core';
 import { connectOkxCandleWs, type WsHandle } from '../data/sources/okx-ws.js';
 import type { OHLCV } from '@sync-indicator/core';
@@ -11,12 +11,11 @@ import { createLogger } from '@sync-indicator/core';
 const log = createLogger('sync-realtime');
 
 const EXCHANGE = 'okx';
-const SYMBOL = 'ETH-USDT';
 
-function toRow(interval: string, ohlcv: OHLCV): OhlcvRow {
+function toRow(symbol: string, interval: string, ohlcv: OHLCV): OhlcvRow {
   return {
     exchange: EXCHANGE,
-    symbol: SYMBOL,
+    symbol,
     interval,
     time: ohlcv.time,
     open: ohlcv.open,
@@ -29,6 +28,7 @@ function toRow(interval: string, ohlcv: OHLCV): OhlcvRow {
 
 async function main(): Promise<void> {
   loadEnv();
+  const symbols = loadSymbols();
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -41,8 +41,8 @@ async function main(): Promise<void> {
 
   let wsHandle: WsHandle | null = null;
 
-  wsHandle = connectOkxCandleWs(async (interval: string, ohlcv: OHLCV, confirmed: boolean) => {
-    const row = toRow(interval, ohlcv);
+  wsHandle = connectOkxCandleWs(symbols, async (interval: string, ohlcv: OHLCV, confirmed: boolean, symbol: string) => {
+    const row = toRow(symbol, interval, ohlcv);
 
     // 已收盘 & 未收盘：均用 upsert（DO UPDATE），确保最终数据与交易所一致
     try {

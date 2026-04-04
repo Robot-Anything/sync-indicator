@@ -42,3 +42,14 @@ export function loadConfig(overrides?: Partial<AppConfig>): AppConfig {
     ...overrides,
   };
 }
+
+/**
+ * 从环境变量 SYMBOLS 读取同步目标（逗号分隔），未设置时默认 ['ETH-USDT']。
+ * 若 SYMBOLS 存在但解析后为空，回退到默认值以避免静默失败。
+ */
+export function loadSymbols(): string[] {
+  const raw = process.env.SYMBOLS;
+  if (!raw) return ['ETH-USDT'];
+  const symbols = raw.split(',').map(s => s.trim()).filter(Boolean);
+  return symbols.length > 0 ? symbols : ['ETH-USDT'];
+}

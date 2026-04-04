@@ -132,7 +132,19 @@ export default function ChartWidget({
 
   // Sync data
   useEffect(() => {
-    if (!bars.length) return;
+    // Clear all series when bars is empty (symbol/interval switch)
+    if (!bars.length) {
+      candlestickRef.current?.setData([]);
+      volumeRef.current?.setData([]);
+      ema20Ref.current?.setData([]);
+      ema50Ref.current?.setData([]);
+      rsiRef.current?.setData([]);
+      macdLineRef.current?.setData([]);
+      macdSignalRef.current?.setData([]);
+      macdHistRef.current?.setData([]);
+      atrRef.current?.setData([]);
+      return;
+    }
 
     const candleData = bars.map((b) => ({
       time: chartTime(b.time) as any,

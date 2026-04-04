@@ -8,7 +8,6 @@ import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('okx-ws-trades');
 const WS_URL = 'wss://ws.okx.com:8443/ws/v5/business';
-const INST_ID = 'ETH-USDT';
 const HEARTBEAT_INTERVAL_MS = 15000;
 const IDLE_PING_THRESHOLD_MS = 20000;
 const IDLE_TIMEOUT_MS = 45000;
@@ -61,7 +60,7 @@ function parseTrade(item: OkxTradeItem, symbol: string): Trade | null {
 /**
  * 建立 OKX WebSocket，订阅 trades-all，收到逐笔成交时调用 onTrade
  */
-export function connectOkxTradesWs(onTrade: OnTradeCallback): WsHandle {
+export function connectOkxTradesWs(symbols: string[], onTrade: OnTradeCallback): WsHandle {
   let ws = new WebSocket(WS_URL);
   let lastMessageTs = Date.now();
   let reconnectAttempts = 0;
@@ -120,10 +119,10 @@ export function connectOkxTradesWs(onTrade: OnTradeCallback): WsHandle {
       ws.send(
         JSON.stringify({
           op: 'subscribe',
-          args: [{ channel: 'trades-all', instId: INST_ID }],
+          args: symbols.map(s => ({ channel: 'trades-all', instId: s })),
         })
       );
-      log.info(`subscribe trades-all instId=${INST_ID}`);
+      log.info(`subscribe trades-all instId=${symbols.join(',')}`);
     });
 
     ws.on('message', (raw: Buffer | string) => {
@@ -152,7 +151,7 @@ export function connectOkxTradesWs(onTrade: OnTradeCallback): WsHandle {
       }
 
       const data = msg.data;
-      const instId = msg.arg?.instId ?? INST_ID;
+      const instId = msg.arg?.instId ?? '';
       if (!data || !Array.isArray(data)) return;
 
       for (const item of data) {

@@ -20,7 +20,7 @@ export { normalizeOkxCandle } from './data/normalize.js';
 export { cleanOhlcvRow, cleanOhlcvBatch } from './data/clean-ohlcv.js';
 
 // Config
-export { loadEnv, loadConfig, type AppConfig } from './config/index.js';
+export { loadEnv, loadConfig, loadSymbols, type AppConfig } from './config/index.js';
 
 // Logger
 export { createLogger, type Logger } from './ops/logger.js';

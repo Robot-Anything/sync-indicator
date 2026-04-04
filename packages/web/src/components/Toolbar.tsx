@@ -1,4 +1,5 @@
 interface ToolbarProps {
+  symbols: string[];
   symbol: string;
   interval: string;
   emaEnabled: boolean;
@@ -14,9 +15,9 @@ interface ToolbarProps {
 }
 
 const INTERVALS = ['15m', '1H', '4H', '1D'];
-const SYMBOLS = ['ETH-USDT', 'BTC-USDT'];
 
 export default function Toolbar({
+  symbols,
   symbol,
   interval,
   emaEnabled,
@@ -38,7 +39,7 @@ export default function Toolbar({
           value={symbol}
           onChange={(e) => onSymbolChange(e.target.value)}
         >
-          {SYMBOLS.map((s) => (
+          {symbols.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

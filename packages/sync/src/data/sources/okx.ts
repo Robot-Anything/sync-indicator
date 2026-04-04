@@ -138,21 +138,19 @@ export async function fetchOkxRange(
   return { '1H': oneH, '4H': fourH, '15m': fifteenM, '1D': oneD };
 }
 
-/** 2025-01-01 00:00:00 UTC 至今的 OKX ETH-USDT 1H/4H/15m/1D K 线 */
-export async function fetchOkxEthUsdtFrom2025Jan1(): Promise<
-  Record<OkxBarInterval, OHLCV[]>
-> {
-  const instId = 'ETH-USDT';
+/** 2025-01-01 00:00:00 UTC 至今的 OKX K 线 */
+export async function fetchOkxFrom2025Jan1(
+  instId: string
+): Promise<Record<OkxBarInterval, OHLCV[]>> {
   const startMs = Date.UTC(2025, 0, 1, 0, 0, 0, 0);
   const endMs = Date.now();
   return fetchOkxRange(instId, startMs, endMs);
 }
 
-/** 拉取 OKX ETH-USDT「今日前三个月」的 1H/4H/15m/1D K 线（区间：今日 0 点往前 90 天，不含今日） */
-export async function fetchOkxEthUsdtLast3Months(): Promise<
-  Record<OkxBarInterval, OHLCV[]>
-> {
-  const instId = 'ETH-USDT';
+/** 拉取 OKX「今日前三个月」的 1H/4H/15m/1D K 线（区间：今日 0 点往前 90 天，不含今日） */
+export async function fetchOkxLast3Months(
+  instId: string
+): Promise<Record<OkxBarInterval, OHLCV[]>> {
   const threeMonthsMs = 90 * 24 * 60 * 60 * 1000;
   const endMs = getTodayStartMs();
   const startMs = endMs - threeMonthsMs;

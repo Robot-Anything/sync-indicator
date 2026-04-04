@@ -9,7 +9,6 @@ import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('okx-ws');
 const WS_URL = 'wss://ws.okx.com:8443/ws/v5/business';
-const INST_ID = 'ETH-USDT';
 const CHANNELS = ['candle1H', 'candle4H', 'candle15m', 'candle1D'] as const;
 const HEARTBEAT_INTERVAL_MS = 15000;
 const IDLE_PING_THRESHOLD_MS = 20000;
@@ -46,7 +45,7 @@ interface OkxPushMessage {
   msg?: string;
 }
 
-export type OnCandleCallback = (interval: string, ohlcv: OHLCV, confirmed: boolean) => void;
+export type OnCandleCallback = (interval: string, ohlcv: OHLCV, confirmed: boolean, symbol: string) => void;
 
 /** WsHandle 保证 close() 始终操作当前活跃连接，解决重连后引用过期问题 */
 export interface WsHandle {
@@ -56,7 +55,7 @@ export interface WsHandle {
 /**
  * 建立 OKX WebSocket，订阅 candle1H / candle4H，收到 confirm=1 的 K 线时调用 onCandle
  */
-export function connectOkxCandleWs(onCandle: OnCandleCallback): WsHandle {
+export function connectOkxCandleWs(symbols: string[], onCandle: OnCandleCallback): WsHandle {
   let ws = new WebSocket(WS_URL);
   let lastMessageTs = Date.now();
   let reconnectAttempts = 0;
@@ -114,10 +113,10 @@ export function connectOkxCandleWs(onCandle: OnCandleCallback): WsHandle {
       log.info('connected');
       const subscribe = {
         op: 'subscribe',
-        args: CHANNELS.map((channel) => ({ channel, instId: INST_ID })),
+        args: symbols.flatMap(s => CHANNELS.map((channel) => ({ channel, instId: s }))),
       };
       ws.send(JSON.stringify(subscribe));
-      log.info(`subscribe ${CHANNELS.join(', ')} instId=${INST_ID}`);
+      log.info(`subscribe ${CHANNELS.join(', ')} instId=${symbols.join(',')}`);
     });
 
     ws.on('message', (raw: Buffer | string) => {
@@ -150,6 +149,7 @@ export function connectOkxCandleWs(onCandle: OnCandleCallback): WsHandle {
       if (!data || !Array.isArray(data) || !arg?.channel) return;
 
       const interval = channelToInterval(arg.channel);
+      const instId = arg.instId ?? '';
       for (const row of data) {
         if (!Array.isArray(row) || row.length < 6) continue;
         const confirmed = isConfirmedCandle(row);
@@ -157,7 +157,7 @@ export function connectOkxCandleWs(onCandle: OnCandleCallback): WsHandle {
         if (!confirmed && !live) continue;
         try {
           const ohlcv = normalizeOkxCandle(row);
-          onCandle(interval, ohlcv, confirmed);
+          onCandle(interval, ohlcv, confirmed, instId);
           log.info(`candle interval=${interval} time=${new Date(ohlcv.time).toISOString()} ${confirmed ? 'confirmed' : 'live'}`);
         } catch (e) {
           log.error(`normalize candle interval=${interval}`, e instanceof Error ? e.message : e);

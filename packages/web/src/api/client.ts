@@ -112,3 +112,8 @@ export async function fetchOrderbook(
 ): Promise<OrderbookData> {
   return apiFetch('/api/v1/orderbook', { exchange, symbol, depth: String(depth) });
 }
+
+export async function fetchSymbols(exchange: string = 'okx'): Promise<string[]> {
+  const data = await apiFetch<{ symbols: string[] }>('/api/v1/symbols', { exchange });
+  return data.symbols;
+}

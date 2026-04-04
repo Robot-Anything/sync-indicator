@@ -7,7 +7,6 @@ import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('okx-ws-bbo');
 const WS_URL = 'wss://ws.okx.com:8443/ws/v5/public';
-const INST_ID = 'ETH-USDT';
 
 export interface BboTick {
   time: number;
@@ -70,7 +69,7 @@ function parseBbo(item: OkxBboItem, symbol: string): BboTick | null {
 /**
  * 建立 OKX WebSocket，订阅 bbo-tbt，收到买卖一档时调用 onBbo
  */
-export function connectOkxBboWs(onBbo: OnBboCallback): WsHandle {
+export function connectOkxBboWs(symbols: string[], onBbo: OnBboCallback): WsHandle {
   let ws = new WebSocket(WS_URL);
   let lastMessageTs = Date.now();
   let reconnectAttempts = 0;
@@ -129,10 +128,10 @@ export function connectOkxBboWs(onBbo: OnBboCallback): WsHandle {
       ws.send(
         JSON.stringify({
           op: 'subscribe',
-          args: [{ channel: 'bbo-tbt', instId: INST_ID }],
+          args: symbols.map(s => ({ channel: 'bbo-tbt', instId: s })),
         })
       );
-      log.info(`subscribe bbo-tbt instId=${INST_ID}`);
+      log.info(`subscribe bbo-tbt instId=${symbols.join(',')}`);
     });
 
     ws.on('message', (raw: Buffer | string) => {
@@ -161,7 +160,7 @@ export function connectOkxBboWs(onBbo: OnBboCallback): WsHandle {
       }
 
       const data = msg.data;
-      const instId = msg.arg?.instId ?? INST_ID;
+      const instId = msg.arg?.instId ?? '';
       if (!data || !Array.isArray(data)) return;
 
       for (const item of data) {

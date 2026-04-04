@@ -2,7 +2,7 @@
  * 实时成交明细同步：订阅 OKX trades-all，写入 trades 表（带小批量缓冲）
  */
 
-import { loadEnv } from '@sync-indicator/core';
+import { loadEnv, loadSymbols } from '@sync-indicator/core';
 import { initPool, getPool } from '@sync-indicator/core';
 import { insertTrades, type TradeRow } from '../data/db-trades.js';
 import { connectOkxTradesWs, type WsHandle } from '../data/sources/okx-ws-trades.js';
@@ -11,14 +11,13 @@ import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('sync-realtime-trades');
 const EXCHANGE = 'okx';
-const SYMBOL = 'ETH-USDT';
 const FLUSH_SIZE = 50;
 const FLUSH_MS = 2000;
 
-function toRow(trade: Trade): TradeRow {
+function toRow(symbol: string, trade: Trade): TradeRow {
   return {
     exchange: EXCHANGE,
-    symbol: SYMBOL,
+    symbol,
     trade_id: trade.tradeId,
     time_ts: trade.time,
     price: trade.price,
@@ -29,6 +28,7 @@ function toRow(trade: Trade): TradeRow {
 
 async function main(): Promise<void> {
   loadEnv();
+  const symbols = loadSymbols();
 
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -54,9 +54,8 @@ async function main(): Promise<void> {
     }
   }
 
-  const wsHandle: WsHandle = connectOkxTradesWs((symbol: string, trade: Trade) => {
-    if (symbol !== SYMBOL) return;
-    buffer.push(toRow(trade));
+  const wsHandle: WsHandle = connectOkxTradesWs(symbols, (symbol: string, trade: Trade) => {
+    buffer.push(toRow(symbol, trade));
     if (buffer.length >= FLUSH_SIZE) {
       if (flushTimer) clearTimeout(flushTimer);
       flushTimer = null;

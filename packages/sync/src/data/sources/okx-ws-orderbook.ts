@@ -8,7 +8,6 @@ import { createLogger } from '@sync-indicator/core';
 
 const log = createLogger('okx-ws-orderbook');
 const WS_URL = 'wss://ws.okx.com:8443/ws/v5/public'; // books channel is on public endpoint
-const INST_ID = 'ETH-USDT';
 const DEPTH = 20; // 20 档
 const HEARTBEAT_INTERVAL_MS = 15000;
 const IDLE_PING_THRESHOLD_MS = 20000;
@@ -93,19 +92,32 @@ function extractTopN(
  * 建立 OKX WebSocket，订阅 books，收到增量/全量更新时调用 onOrderbook（前 20 档）
  * books channel 返回增量更新（type=snap）和全量快照（type=snap）
  */
-export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandle {
+export function connectOkxOrderbookWs(symbols: string[], onOrderbook: OnOrderbookCallback): WsHandle {
   let ws = new WebSocket(WS_URL);
   let lastMessageTs = Date.now();
   let reconnectAttempts = 0;
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
 
-  // 本地订单簿状态
-  const bidMap = new Map<number, number>(); // price -> size
-  const askMap = new Map<number, number>();
+  // 每个 symbol 独立的订单簿状态
+  interface SymbolState {
+    bidMap: Map<number, number>;
+    askMap: Map<number, number>;
+    lastSeqId: string | null;
+    lastUpdateTs: number;
+  }
 
-  let lastSeqId: string | null = null;
-  let lastUpdateTs = 0;
+  const stateMap = new Map<string, SymbolState>();
+  const getOrCreateState = (instId: string): SymbolState => {
+    let state = stateMap.get(instId);
+    if (!state) {
+      state = { bidMap: new Map(), askMap: new Map(), lastSeqId: null, lastUpdateTs: 0 };
+      stateMap.set(instId, state);
+    }
+    return state;
+  };
+  // 预初始化所有 symbol 的状态
+  for (const s of symbols) getOrCreateState(s);
 
   const clearHeartbeat = (): void => {
     if (!heartbeatTimer) return;
@@ -133,10 +145,11 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
     log.info(`reconnect scheduled attempt=${reconnectAttempts} delayMs=${delay}`);
   };
 
-  const emit = (ts: number): void => {
-    const { bids, asks } = extractTopN(bidMap, askMap, DEPTH);
+  const emit = (instId: string, ts: number): void => {
+    const state = getOrCreateState(instId);
+    const { bids, asks } = extractTopN(state.bidMap, state.askMap, DEPTH);
     if (bids.length > 0 || asks.length > 0) {
-      onOrderbook(INST_ID, { time: ts, bids, asks });
+      onOrderbook(instId, { time: ts, bids, asks });
     }
   };
 
@@ -163,14 +176,23 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
       }, HEARTBEAT_INTERVAL_MS);
 
       log.info('connected');
+      // 重连时清空所有 symbol 状态
+      for (const s of symbols) {
+        const st = stateMap.get(s);
+        if (st) {
+          st.bidMap.clear();
+          st.askMap.clear();
+          st.lastSeqId = null;
+        }
+      }
       // 订阅 books channel，depth=400 获取更多档位
       ws.send(
         JSON.stringify({
           op: 'subscribe',
-          args: [{ channel: 'books', instId: INST_ID, depth: 400 }],
+          args: symbols.map(s => ({ channel: 'books', instId: s, depth: 400 })),
         })
       );
-      log.info(`subscribe books instId=${INST_ID}`);
+      log.info(`subscribe books instId=${symbols.join(',')}`);
     });
 
     ws.on('message', (raw: Buffer | string) => {
@@ -200,28 +222,31 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
 
       const data = msg.data;
       const action = msg.action; // "snapshot" | "update" — on outer message
+      const instId = msg.arg?.instId ?? '';
       if (!data || !Array.isArray(data)) return;
+
+      const state = getOrCreateState(instId);
 
       for (const item of data) {
         const ts = Number(item?.ts ?? 0);
 
         // 全量快照：action === 'snapshot'（首次连接及重连后第一条消息）
         if (action === 'snapshot') {
-          bidMap.clear();
-          askMap.clear();
-          for (const [px, sz] of parseLevels(item.bids)) bidMap.set(px, sz);
-          for (const [px, sz] of parseLevels(item.asks)) askMap.set(px, sz);
-          lastSeqId = item.seqId != null ? String(item.seqId) : null;
-          lastUpdateTs = ts;
-          emit(ts);
+          state.bidMap.clear();
+          state.askMap.clear();
+          for (const [px, sz] of parseLevels(item.bids)) state.bidMap.set(px, sz);
+          for (const [px, sz] of parseLevels(item.asks)) state.askMap.set(px, sz);
+          state.lastSeqId = item.seqId != null ? String(item.seqId) : null;
+          state.lastUpdateTs = ts;
+          emit(instId, ts);
           continue;
         }
 
         // 增量更新：按 seqId 顺序处理，防止乱序重放
         const seqId = item.seqId != null ? String(item.seqId) : null;
-        if (seqId && lastSeqId) {
-          if (parseInt(seqId) <= parseInt(lastSeqId)) {
-            log.warn(`seqId ${seqId} <= lastSeqId ${lastSeqId}, skip`);
+        if (seqId && state.lastSeqId) {
+          if (parseInt(seqId) <= parseInt(state.lastSeqId)) {
+            log.warn(`seqId ${seqId} <= lastSeqId ${state.lastSeqId}, skip`);
             continue;
           }
         }
@@ -234,9 +259,9 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
             const sz = Number(level[1]);
             if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
             if (sz === 0) {
-              bidMap.delete(px);
+              state.bidMap.delete(px);
             } else {
-              bidMap.set(px, sz);
+              state.bidMap.set(px, sz);
             }
           }
         }
@@ -249,16 +274,16 @@ export function connectOkxOrderbookWs(onOrderbook: OnOrderbookCallback): WsHandl
             const sz = Number(level[1]);
             if (!Number.isFinite(px) || !Number.isFinite(sz)) continue;
             if (sz === 0) {
-              askMap.delete(px);
+              state.askMap.delete(px);
             } else {
-              askMap.set(px, sz);
+              state.askMap.set(px, sz);
             }
           }
         }
 
-        if (seqId) lastSeqId = seqId;
-        if (ts > 0) lastUpdateTs = ts;
-        emit(ts);
+        if (seqId) state.lastSeqId = seqId;
+        if (ts > 0) state.lastUpdateTs = ts;
+        emit(instId, ts);
       }
     });
 
