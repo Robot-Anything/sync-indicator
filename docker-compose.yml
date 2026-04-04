@@ -83,3 +83,16 @@ services:
     ports:
       - "3211:3211"
     restart: unless-stopped
+
+  # Web 前端 (React + Vite, 由 nginx 提供服务)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    container_name: sync-indicator-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - indicator-api
+    restart: unless-stopped

@@ -11,6 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json packages/core/
 COPY packages/sync/package.json packages/sync/
 COPY packages/api/package.json packages/api/
+COPY packages/web/package.json packages/web/
 RUN pnpm install --frozen-lockfile
 
 # --- build stage for sync ---
@@ -51,3 +52,15 @@ COPY --from=api-build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 RUN pnpm install --prod --frozen-lockfile
 EXPOSE 3001
 CMD ["node", "packages/api/dist/index.js"]
+
+# --- build stage for web ---
+FROM deps AS web-build
+COPY . .
+RUN pnpm --filter @sync-indicator/web run build
+
+# --- runtime for web (nginx) ---
+FROM nginx:alpine AS web
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=web-build /app/packages/web/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
