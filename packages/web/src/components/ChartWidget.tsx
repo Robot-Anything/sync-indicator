@@ -16,6 +16,8 @@ interface ChartWidgetProps {
   rsiEnabled: boolean;
   macdEnabled: boolean;
   atrEnabled: boolean;
+  bollingerEnabled: boolean;
+  adxDxEnabled: boolean;
 }
 
 const BULL_COLOR = '#00C087';
@@ -34,6 +36,8 @@ export default function ChartWidget({
   rsiEnabled,
   macdEnabled,
   atrEnabled,
+  bollingerEnabled,
+  adxDxEnabled,
 }: ChartWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -48,11 +52,18 @@ export default function ChartWidget({
   const macdSignalRef = useRef<ISeriesApi<'Line'> | null>(null);
   const macdHistRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const atrRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const bbUpperRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const bbMiddleRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const bbLowerRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const adxLineRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const plusDiRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const minusDiRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   // Track pane indices
   const rsiPaneRef = useRef<number | null>(null);
   const macdPaneRef = useRef<number | null>(null);
   const atrPaneRef = useRef<number | null>(null);
+  const adxPaneRef = useRef<number | null>(null);
 
   // Initialize chart once
   useEffect(() => {
@@ -116,6 +127,14 @@ export default function ChartWidget({
     ema20Ref.current = ema20;
     ema50Ref.current = ema50;
 
+    // Bollinger Bands (on main pane)
+    const bbUpper = chart.addSeries(LineSeries, { color: '#E74C3C', lineWidth: 1, lineStyle: 2 as any, priceScaleId: 'right' }, 0);
+    const bbMiddle = chart.addSeries(LineSeries, { color: '#FFFFFF', lineWidth: 1, priceScaleId: 'right' }, 0);
+    const bbLower = chart.addSeries(LineSeries, { color: '#E74C3C', lineWidth: 1, lineStyle: 2 as any, priceScaleId: 'right' }, 0);
+    bbUpperRef.current = bbUpper;
+    bbMiddleRef.current = bbMiddle;
+    bbLowerRef.current = bbLower;
+
     // Resize observer
     const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
@@ -143,6 +162,12 @@ export default function ChartWidget({
       macdSignalRef.current?.setData([]);
       macdHistRef.current?.setData([]);
       atrRef.current?.setData([]);
+      bbUpperRef.current?.setData([]);
+      bbMiddleRef.current?.setData([]);
+      bbLowerRef.current?.setData([]);
+      adxLineRef.current?.setData([]);
+      plusDiRef.current?.setData([]);
+      minusDiRef.current?.setData([]);
       return;
     }
 
@@ -244,6 +269,43 @@ export default function ChartWidget({
       atrRef.current?.setData([]);
     }
 
+    // Bollinger Bands
+    if (bars[0]?.bb_upper != null) {
+      const bbUpperData = bars.filter((b) => b.bb_upper != null).map((b) => ({ time: chartTime(b.time) as any, value: b.bb_upper! }));
+      const bbMiddleData = bars.filter((b) => b.bb_middle != null).map((b) => ({ time: chartTime(b.time) as any, value: b.bb_middle! }));
+      const bbLowerData = bars.filter((b) => b.bb_lower != null).map((b) => ({ time: chartTime(b.time) as any, value: b.bb_lower! }));
+      bbUpperRef.current?.setData(bbUpperData as any);
+      bbMiddleRef.current?.setData(bbMiddleData as any);
+      bbLowerRef.current?.setData(bbLowerData as any);
+    } else {
+      bbUpperRef.current?.setData([]);
+      bbMiddleRef.current?.setData([]);
+      bbLowerRef.current?.setData([]);
+    }
+
+    // ADX
+    if (bars[0]?.adx_14 != null) {
+      const chart = chartRef.current;
+      if (chart && adxLineRef.current == null) {
+        const pane = chart.addPane();
+        const panes = chart.panes();
+        adxPaneRef.current = panes.indexOf(pane);
+        adxLineRef.current = pane.addSeries(LineSeries, { color: '#FFB800', lineWidth: 2 });
+        plusDiRef.current = pane.addSeries(LineSeries, { color: '#00C087', lineWidth: 2 });
+        minusDiRef.current = pane.addSeries(LineSeries, { color: '#FF3062', lineWidth: 2 });
+      }
+      const adxData = bars.filter((b) => b.adx_14 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.adx_14! }));
+      const plusDiData = bars.filter((b) => b.plus_di_14 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.plus_di_14! }));
+      const minusDiData = bars.filter((b) => b.minus_di_14 != null).map((b) => ({ time: chartTime(b.time) as any, value: b.minus_di_14! }));
+      adxLineRef.current?.setData(adxData as any);
+      plusDiRef.current?.setData(plusDiData as any);
+      minusDiRef.current?.setData(minusDiData as any);
+    } else {
+      adxLineRef.current?.setData([]);
+      plusDiRef.current?.setData([]);
+      minusDiRef.current?.setData([]);
+    }
+
     chartRef.current?.timeScale().fitContent();
   }, [bars]);
 
@@ -273,6 +335,19 @@ export default function ChartWidget({
     const pane = chart.panes()[atrPaneRef.current];
     if (pane) pane.setHeight(atrEnabled ? 150 : 0);
   }, [atrEnabled]);
+
+  useEffect(() => {
+    bbUpperRef.current?.applyOptions({ visible: bollingerEnabled });
+    bbMiddleRef.current?.applyOptions({ visible: bollingerEnabled });
+    bbLowerRef.current?.applyOptions({ visible: bollingerEnabled });
+  }, [bollingerEnabled]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || adxPaneRef.current == null) return;
+    const pane = chart.panes()[adxPaneRef.current];
+    if (pane) pane.setHeight(adxDxEnabled ? 150 : 0);
+  }, [adxDxEnabled]);
 
   return <div ref={containerRef} className="chart-widget-root" />;
 }

@@ -21,6 +21,8 @@ export default function App() {
   const [rsiEnabled, setRsiEnabled] = useState(false);
   const [macdEnabled, setMacdEnabled] = useState(false);
   const [atrEnabled, setAtrEnabled] = useState(false);
+  const [bollingerEnabled, setBollingerEnabled] = useState(false);
+  const [adxDxEnabled, setAdxDxEnabled] = useState(false);
 
   // Data
   const [bars, setBars] = useState<Bar[]>([]);
@@ -49,7 +51,7 @@ export default function App() {
     }
 
     // Always include at least one indicator to avoid 400
-    if (!emaEnabled && !rsiEnabled && !macdEnabled && !atrEnabled) {
+    if (!emaEnabled && !rsiEnabled && !macdEnabled && !atrEnabled && !bollingerEnabled && !adxDxEnabled) {
       ema.push(20);
     }
 
@@ -66,11 +68,13 @@ export default function App() {
       rsi: rsiEnabled ? 14 : undefined,
       macd: macdEnabled ? 1 : undefined,
       atr: atrEnabled ? 14 : undefined,
+      bollinger: bollingerEnabled ? '20,2' : undefined,
+      adx: adxDxEnabled ? 14 : undefined,
     })
       .then(setBars)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [symbol, interval, emaEnabled, rsiEnabled, macdEnabled, atrEnabled]);
+  }, [symbol, interval, emaEnabled, rsiEnabled, macdEnabled, atrEnabled, bollingerEnabled, adxDxEnabled]);
 
   // Poll BBO every 1s
   useEffect(() => {
@@ -124,6 +128,8 @@ export default function App() {
   const handleToggleRsi = useCallback(() => setRsiEnabled((v) => !v), []);
   const handleToggleMacd = useCallback(() => setMacdEnabled((v) => !v), []);
   const handleToggleAtr = useCallback(() => setAtrEnabled((v) => !v), []);
+  const handleToggleBollinger = useCallback(() => setBollingerEnabled((v) => !v), []);
+  const handleToggleAdx = useCallback(() => setAdxDxEnabled((v) => !v), []);
 
   return (
     <div className="app">
@@ -135,12 +141,16 @@ export default function App() {
         rsiEnabled={rsiEnabled}
         macdEnabled={macdEnabled}
         atrEnabled={atrEnabled}
+        bollingerEnabled={bollingerEnabled}
+        adxDxEnabled={adxDxEnabled}
         onSymbolChange={setSymbol}
         onIntervalChange={setInterval}
         onToggleEma={handleToggleEma}
         onToggleRsi={handleToggleRsi}
         onToggleMacd={handleToggleMacd}
         onToggleAtr={handleToggleAtr}
+        onToggleBollinger={handleToggleBollinger}
+        onToggleAdx={handleToggleAdx}
       />
 
       <div className="chart-area">
@@ -150,6 +160,8 @@ export default function App() {
           rsiEnabled={rsiEnabled}
           macdEnabled={macdEnabled}
           atrEnabled={atrEnabled}
+          bollingerEnabled={bollingerEnabled}
+          adxDxEnabled={adxDxEnabled}
         />
         {loading && (
           <div className="loading-overlay">

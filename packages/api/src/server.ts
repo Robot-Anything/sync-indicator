@@ -5,6 +5,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { indicatorsRoutes } from './routes/indicators.js';
+import { indicatorsListRoutes } from './routes/indicators-list.js';
 import { ohlcvRoutes } from './routes/ohlcv.js';
 import { orderbookRoutes } from './routes/orderbook.js';
 import { bboRoutes } from './routes/bbo.js';
@@ -26,6 +27,7 @@ export async function buildServer(port: number): Promise<FastifyInstance> {
 
   // Register routes
   fastify.get('/api/v1/indicators', indicatorsRoutes);
+  fastify.get('/api/v1/indicators/list', indicatorsListRoutes);
   fastify.get('/api/v1/ohlcv', ohlcvRoutes);
   fastify.get('/api/v1/orderbook', orderbookRoutes);
   fastify.get('/api/v1/bbo', bboRoutes);

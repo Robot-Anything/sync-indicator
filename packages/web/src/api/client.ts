@@ -13,6 +13,12 @@ export interface Bar {
   macd_signal?: number | null;
   macd_histogram?: number | null;
   atr_14?: number | null;
+  bb_upper?: number | null;
+  bb_middle?: number | null;
+  bb_lower?: number | null;
+  adx_14?: number | null;
+  plus_di_14?: number | null;
+  minus_di_14?: number | null;
   [key: string]: unknown;
 }
 
@@ -42,6 +48,8 @@ export interface IndicatorParams {
   macd_slow?: number;
   macd_signal_period?: number;
   atr?: number;
+  bollinger?: string;
+  adx?: number;
 }
 
 async function apiFetch<T>(path: string, params: Record<string, string>): Promise<T> {
@@ -92,6 +100,8 @@ export async function fetchIndicators(params: IndicatorParams): Promise<Bar[]> {
   if (params.macd_slow) searchParams.set('macd_slow', String(params.macd_slow));
   if (params.macd_signal_period) searchParams.set('macd_signal', String(params.macd_signal_period));
   if (params.atr) searchParams.set('atr', String(params.atr));
+  if (params.bollinger) searchParams.set('bollinger', params.bollinger);
+  if (params.adx) searchParams.set('adx', String(params.adx));
 
   const res = await fetch(`/api/v1/indicators?${searchParams}`);
   if (!res.ok) {

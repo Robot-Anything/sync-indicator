@@ -15,9 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ├─────────────────────────────────────────────────────┤
 │  src/scripts/          │  src/indicators/          │
 │  - fetch-okx-ohlcv     │  - ema, macd, atr         │
-│  - sync-realtime-ohlcv │  - fill-indicators        │
-│  - sync-realtime-bbo   │  - macd-cross             │
-│  - sync-realtime-trades│                           │
+│  - sync-realtime-ohlcv │  - bollinger, adx, rsi    │
+│  - sync-realtime-bbo   │  - fill-indicators        │
+│  - sync-realtime-trades│  - macd-cross             │
 │  - fetch-instruments   │  src/data/                │
 │  - backfill-indicators │  - db.ts (PostgreSQL)     │
 │  - init-db             │  - sources/okx*.ts        │
@@ -102,8 +102,43 @@ Exported from `src/indicators/`:
 - `ema(close, period)` - Exponential Moving Average
 - `macd(close, options?)` - MACD (returns `{ macd, signal, histogram }`)
 - `atr(high, low, close, period?)` - Average True Range
+- `rsi(close, period)` - Relative Strength Index
+- `bollinger(close, period?, stdDev?)` - Bollinger Bands (returns `{ upper, middle, lower }`)
+- `adx(high, low, close, period?)` - Average Directional Index (returns `{ adx, plusDI, minusDI }`)
 - `macdGoldenCross(macd, signal)` - Golden cross detection
 - `fillMissingIndicatorsForBars(...)` - In-memory indicator fill for bars missing DB indicators
+
+### Indicator Storage
+
+- **DB-persisted** (in `ohlcv_indicators` table): EMA, MACD, ATR — computed by backfill and real-time calc
+- **On-the-fly** (API only): RSI, Bollinger Bands, ADX — computed at query time, not stored in DB
+
+## API
+
+Fastify server at `/api/v1/`:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/indicators` | OHLCV + computed indicators |
+| `GET /api/v1/indicators/list` | List of supported indicators with params |
+| `GET /api/v1/ohlcv` | Raw OHLCV data |
+| `GET /api/v1/orderbook` | Order book snapshot |
+| `GET /api/v1/bbo` | Best bid/offer |
+| `GET /api/v1/symbols` | Available trading symbols |
+| `GET /health` | Health check |
+
+### Indicators Query Parameters
+
+| Indicator | Param | Format | Example |
+|-----------|-------|--------|---------|
+| EMA | `ema[]` | period (array) | `ema[]=20&ema[]=50` |
+| MACD | `macd` | `1` to enable | `macd=1&macd_fast=12&macd_slow=26&macd_signal=9` |
+| ATR | `atr` | period | `atr=14` |
+| RSI | `rsi` | period | `rsi=14` |
+| Bollinger | `bollinger` | `period,stdDev` | `bollinger=20,2` |
+| ADX | `adx` | period | `adx=14` |
+
+Example: `GET /api/v1/indicators?symbol=BTC-USDT&interval=1h&ema[]=20&ema[]=50&bollinger=20,2&adx=14`
 
 ## Directory Structure
 
@@ -112,7 +147,7 @@ sync-indicator/
 ├── src/
 │   ├── config/         # Environment variable loading
 │   ├── data/           # DB access, OKX REST/WebSocket sources
-│   ├── indicators/     # EMA, MACD, ATR, fill-indicators
+│   ├── indicators/     # EMA, MACD, ATR, Bollinger, ADX, RSI
 │   ├── ops/            # Logger
 │   ├── scripts/        # CLI entry points (fetch, sync, backfill)
 │   └── types/          # OHLCV, Trade, Bar types

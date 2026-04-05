@@ -16,6 +16,8 @@ import { ema } from '@sync-indicator/core';
 import { macd } from '@sync-indicator/core';
 import { atr } from '@sync-indicator/core';
 import { rsi } from '@sync-indicator/core';
+import { bollinger } from '@sync-indicator/core';
+import { adx } from '@sync-indicator/core';
 import { getPool } from '@sync-indicator/core';
 import { createLogger } from '@sync-indicator/core';
 
@@ -33,6 +35,8 @@ interface IndicatorsQuery {
   macd_slow?: string;
   macd_signal?: string;
   atr?: string;
+  bollinger?: string;
+  adx?: string;
 }
 
 function parseIntOrDefault(s: string | undefined, def: number): number {
@@ -47,11 +51,11 @@ function toNumberArr(v: string | string[] | undefined): number[] {
   return arr.map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
 }
 
-/** warmup 缓冲：max(max_ema_period, 35+signal_period) + 50 */
-function calcWarmup(emaPeriods: number[], macdFast: number, macdSlow: number, macdSignal: number): number {
+/** warmup 缓冲：max(max_ema_period, 35+signal_period, bollinger_period, 2*adx_period) + 50 */
+function calcWarmup(emaPeriods: number[], macdFast: number, macdSlow: number, macdSignal: number, bollingerPeriod: number, adxPeriod: number): number {
   const maxEma = emaPeriods.length > 0 ? Math.max(...emaPeriods) : 0;
-  const macdMax = Math.max(macdFast, macdSlow, macdSignal);
-  return Math.max(maxEma, 35 + macdSignal) + 50;
+  const adxWarmup = adxPeriod > 0 ? 2 * adxPeriod : 0;
+  return Math.max(maxEma, 35 + macdSignal, bollingerPeriod, adxWarmup) + 50;
 }
 
 export async function indicatorsRoutes(
@@ -76,14 +80,20 @@ export async function indicatorsRoutes(
   const macdSlow = parseIntOrDefault(request.query.macd_slow, 26);
   const macdSignal = parseIntOrDefault(request.query.macd_signal, 9);
   const atrPeriod = parseIntOrDefault(request.query.atr, 0);
+  const bollingerParam = request.query.bollinger;
+  const adxParam = request.query.adx;
 
-  if (emaPeriods.length === 0 && !rsiPeriod && !macdEnabled && !atrPeriod) {
-    reply.status(400).send({ error: 'at least one indicator parameter required (ema, rsi, macd, atr)' });
+  if (emaPeriods.length === 0 && !rsiPeriod && !macdEnabled && !atrPeriod && !bollingerParam && !adxParam) {
+    reply.status(400).send({ error: 'at least one indicator parameter required (ema, rsi, macd, atr, bollinger, adx)' });
     return;
   }
 
+  // Parse bollinger/adx periods for warmup calc
+  const bollingerPeriod = bollingerParam ? parseIntOrDefault(bollingerParam.split(',')[0], 20) : 0;
+  const adxPeriod = adxParam ? parseIntOrDefault(adxParam, 14) : 0;
+
   // Calculate warmup
-  const warmup = calcWarmup(emaPeriods, macdFast, macdSlow, macdSignal);
+  const warmup = calcWarmup(emaPeriods, macdFast, macdSlow, macdSignal, bollingerPeriod, adxPeriod);
   const fetchLimit = limit + warmup;
 
   try {
@@ -114,6 +124,21 @@ export async function indicatorsRoutes(
     // Compute ATR if requested
     const atrResult = atrPeriod > 0 ? atr(highs, lows, closes, atrPeriod) : null;
 
+    // Compute Bollinger if requested (format: "period,stdDev" or just "period")
+    let bollingerResult: ReturnType<typeof bollinger> | null = null;
+    let bollingerStdDev = 2;
+    if (bollingerParam) {
+      const parts = bollingerParam.split(',');
+      bollingerStdDev = parts[1] ? parseFloat(parts[1]) : 2;
+      bollingerResult = bollinger(closes, bollingerPeriod, bollingerStdDev);
+    }
+
+    // Compute ADX if requested
+    let adxResult: ReturnType<typeof adx> | null = null;
+    if (adxParam) {
+      adxResult = adx(highs, lows, closes, adxPeriod);
+    }
+
     // Build response bars (drop warmup period)
     const resultBars = bars.slice(warmup).map((bar, i) => {
       const idx = warmup + i;
@@ -139,6 +164,16 @@ export async function indicatorsRoutes(
       }
       if (atrResult) {
         out[`atr_${atrPeriod}`] = atrResult[idx] ?? null;
+      }
+      if (bollingerResult) {
+        out['bb_upper'] = bollingerResult.upper[idx] ?? null;
+        out['bb_middle'] = bollingerResult.middle[idx] ?? null;
+        out['bb_lower'] = bollingerResult.lower[idx] ?? null;
+      }
+      if (adxResult) {
+        out[`adx_${adxPeriod}`] = adxResult.adx[idx] ?? null;
+        out[`plus_di_${adxPeriod}`] = adxResult.plusDI[idx] ?? null;
+        out[`minus_di_${adxPeriod}`] = adxResult.minusDI[idx] ?? null;
       }
 
       return out;

@@ -6,12 +6,16 @@ interface ToolbarProps {
   rsiEnabled: boolean;
   macdEnabled: boolean;
   atrEnabled: boolean;
+  bollingerEnabled: boolean;
+  adxDxEnabled: boolean;
   onSymbolChange: (symbol: string) => void;
   onIntervalChange: (interval: string) => void;
   onToggleEma: () => void;
   onToggleRsi: () => void;
   onToggleMacd: () => void;
   onToggleAtr: () => void;
+  onToggleBollinger: () => void;
+  onToggleAdx: () => void;
 }
 
 const INTERVALS = ['15m', '1H', '4H', '1D'];
@@ -24,12 +28,16 @@ export default function Toolbar({
   rsiEnabled,
   macdEnabled,
   atrEnabled,
+  bollingerEnabled,
+  adxDxEnabled,
   onSymbolChange,
   onIntervalChange,
   onToggleEma,
   onToggleRsi,
   onToggleMacd,
   onToggleAtr,
+  onToggleBollinger,
+  onToggleAdx,
 }: ToolbarProps) {
   return (
     <div className="toolbar">
@@ -90,6 +98,18 @@ export default function Toolbar({
             onClick={onToggleAtr}
           >
             ATR
+          </button>
+          <button
+            className={`toggle-chip${bollingerEnabled ? ' active' : ''}`}
+            onClick={onToggleBollinger}
+          >
+            BB
+          </button>
+          <button
+            className={`toggle-chip${adxDxEnabled ? ' active' : ''}`}
+            onClick={onToggleAdx}
+          >
+            ADX
           </button>
         </div>
       </div>

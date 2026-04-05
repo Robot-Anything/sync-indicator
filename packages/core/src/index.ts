@@ -12,6 +12,8 @@ export { macd, type MacdOptions } from './indicators/macd.js';
 export { atr } from './indicators/atr.js';
 export { macdGoldenCross } from './indicators/macd-cross.js';
 export { rsi } from './indicators/rsi.js';
+export { bollinger } from './indicators/bollinger.js';
+export { adx } from './indicators/adx.js';
 
 // Data access
 export { initPool, getPool, insertOhlcv, upsertOhlcv, type OhlcvRow } from './data/db.js';
