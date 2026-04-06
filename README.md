@@ -4,9 +4,10 @@ OKX 行情数据同步 + 技术指标 HTTP API。pnpm monorepo，三个包：
 
 | 包 | 职责 |
 |----|------|
-| `@sync-indicator/core` | 共享：指标纯函数（EMA/MACD/ATR/RSI）、类型、DB 工具 |
+| `@sync-indicator/core` | 共享：指标纯函数（EMA/MACD/ATR/RSI/BB/ADX）、类型、DB 工具 |
 | `@sync-indicator/sync` | 数据同步：K 线、成交、BBO、订单簿 → PostgreSQL |
 | `@sync-indicator/api` | HTTP API：Fastify，指标按请求即时计算 |
+| `sync-indicator-web` | Web 前端：React + lightweight-charts 行情图表 |
 
 ---
 
@@ -17,9 +18,10 @@ sync-indicator/
 ├── packages/
 │   ├── core/          # 共享指标函数、DB 查询工具
 │   ├── sync/          # OKX WebSocket/REST 同步脚本
-│   └── api/           # Fastify HTTP API
+│   ├── api/           # Fastify HTTP API
+│   └── web/           # React 前端（lightweight-charts）
 ├── sql/               # 数据库初始化 SQL
-├── docker/            # Docker Compose
+├── docker/            # Docker Compose + Dockerfile
 └── pnpm-workspace.yaml
 ```
 
@@ -69,6 +71,12 @@ pnpm --filter @sync-indicator/api run start
 
 # 开发模式（热重载）
 pnpm --filter @sync-indicator/api run dev
+
+# Web 前端开发
+pnpm --filter sync-indicator-web run dev
+
+# 构建 Web 前端
+pnpm --filter sync-indicator-web run build
 ```
 
 ---
@@ -97,6 +105,7 @@ docker compose -f docker/docker-compose.yml up -d indicator-api
 | `sync-realtime-bbo` | 实时买卖一档 | unless-stopped |
 | `sync-realtime-orderbook` | 实时订单簿 20 档 | unless-stopped |
 | `indicator-api` | HTTP API（默认 :3001） | unless-stopped |
+| `web` | Web 前端（nginx，默认 :3000） | unless-stopped |
 
 ---
 
@@ -131,6 +140,8 @@ Base URL：`http://localhost:3001`
 | `macd_slow` | number | `26` | MACD 慢线周期 |
 | `macd_signal` | number | `9` | MACD 信号线周期 |
 | `atr` | number | — | ATR 周期 |
+| `bollinger` | string | — | Bollinger Bands 参数，格式 `"period,stdDev"`（如 `20,2`） |
+| `adx` | number | — | ADX 周期 |
 
 至少需要传一个指标参数。
 
@@ -145,6 +156,9 @@ GET /api/v1/indicators?interval=4H&macd=1&macd_fast=12&macd_slow=26&macd_signal=
 
 # 多指标组合
 GET /api/v1/indicators?interval=15m&ema[]=10&ema[]=20&ema[]=50&rsi=14&macd=1&atr=14
+
+# Bollinger Bands + ADX
+GET /api/v1/indicators?interval=1H&ema[]=20&bollinger=20,2&adx=14
 ```
 
 **响应：**
@@ -165,13 +179,35 @@ GET /api/v1/indicators?interval=15m&ema[]=10&ema[]=20&ema[]=50&rsi=14&macd=1&atr
       "macd": 12.5,
       "macd_signal": 10.2,
       "macd_histogram": 2.3,
-      "atr_14": 45.6
+      "atr_14": 45.6,
+      "bb_upper": 3480.2,
+      "bb_middle": 3400.0,
+      "bb_lower": 3319.8,
+      "adx_14": 25.3,
+      "plus_di_14": 30.1,
+      "minus_di_14": 18.5
     }
   ]
 }
 ```
 
-响应字段名根据参数动态生成：`ema_<period>`、`rsi_<period>`、`atr_<period>`。
+响应字段名根据参数动态生成：`ema_<period>`、`rsi_<period>`、`atr_<period>`、`adx_<period>`、`plus_di_<period>`、`minus_di_<period>`、`bb_upper`/`bb_middle`/`bb_lower`。
+
+---
+
+### `GET /api/v1/symbols`
+
+获取支持的交易对列表。
+
+| 参数 | 默认 |
+|------|------|
+| `exchange` | `okx` |
+
+```json
+{
+  "symbols": ["BTC-USDT", "ETH-USDT"]
+}
+```
 
 ---
 
@@ -249,6 +285,32 @@ GET /api/v1/indicators?interval=15m&ema[]=10&ema[]=20&ema[]=50&rsi=14&macd=1&atr
 
 ---
 
+## Web 前端
+
+基于 React + lightweight-charts 的行情图表界面，位于 `packages/web/`。
+
+**功能：**
+- K 线图 + 成交量柱状图
+- 切换交易对、K 线周期（15m / 1H / 4H / 1D）
+- 实时 BBO + 订单簿面板
+- 可切换技术指标叠加/子图：
+  - EMA（20/50）
+  - RSI（14）
+  - MACD
+  - ATR（14）
+  - Bollinger Bands（20,2）
+  - ADX / +DI / -DI（14）
+
+**开发：**
+
+```bash
+pnpm --filter sync-indicator-web run dev    # http://localhost:5173
+```
+
+**Docker：** 通过 nginx 打包，默认端口 3000，反向代理 API 到 `indicator-api:3001`。
+
+---
+
 ## 指标说明
 
 所有指标均为纯函数，位于 `@sync-indicator/core`，API 请求时即时计算，不落库。
@@ -260,6 +322,8 @@ GET /api/v1/indicators?interval=15m&ema[]=10&ema[]=20&ema[]=50&rsi=14&macd=1&atr
 | RSI | Wilder 平滑（α = 1/period），SMA 种子 | 任意 period |
 | ATR | SMA(TR, period)，滑动窗口 O(n) | 任意 period |
 | MACD 金叉 | 前根 MACD < Signal 且当根 MACD ≥ Signal | — |
+| Bollinger Bands | SMA ± stdDev × σ | period, stdDev |
+| ADX / +DI / -DI | Wilder 平滑 TR/DX | period |
 
 ---
 
