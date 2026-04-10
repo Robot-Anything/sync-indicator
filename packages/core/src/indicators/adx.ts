@@ -87,10 +87,10 @@ function wilderSmooth(raw: number[], period: number): number[] {
 
   let sum = 0;
   for (let i = 0; i < period; i++) sum += raw[i]!;
-  out[period - 1] = sum;
+  out[period - 1] = sum / period;
 
   for (let i = period; i < n; i++) {
-    out[i] = out[i - 1]! - out[i - 1]! / period + raw[i]!;
+    out[i] = out[i - 1]! - out[i - 1]! / period + raw[i]! / period;
   }
   return out;
 }
@@ -114,7 +114,7 @@ function wilderSmoothFrom(raw: number[], period: number, startIdx: number): numb
 
   for (let i = seedEnd; i < n; i++) {
     if (Number.isNaN(raw[i])) continue;
-    out[i] = out[i - 1]! - out[i - 1]! / period + raw[i]!;
+    out[i] = out[i - 1]! - out[i - 1]! / period + raw[i]! / period;
   }
   return out;
 }
